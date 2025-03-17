@@ -1,6 +1,7 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import path from 'path';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -65,24 +66,53 @@ const config: Config = {
   ],
 
   plugins: [
+    // 內部發布說明插件
     [
-      './src/plugins/changelog/index.ts',
+      require.resolve('./src/plugins/changelog/index.ts'),
       {
-        blogTitle: '产品发布说明',
-        blogDescription: '了解我们产品的最新更新和改进',
+        id: 'internal_changelog',
+        blogTitle: '內部發布說明',
+        blogDescription: '了解我們OOSA-APP的最新更新和改進 (內部版本)',
+        blogSidebarCount: 'ALL',
+        blogSidebarTitle: '所有版本',
+        routeBasePath: '/internal-release-notes',
+        archiveBasePath: null,
+        authorsMapPath: 'authors.json',
+        path: path.resolve(__dirname, './internal_changelog'),
+        showReadingTime: false,
+        postsPerPage: 20,
+        feedOptions: {
+          type: 'all',
+          title: '內部發布說明',
+          description: '了解我們OOSA-APP的內部版本更新和改進',
+          copyright: `Copyright © ${new Date().getFullYear()} Arwork`,
+          language: 'zh-Hant',
+        },
+        onInlineAuthors: 'warn',
+      },
+    ],
+    
+    // 公開發布說明插件
+    [
+      require.resolve('./src/plugins/changelog/index.ts'),
+      {
+        id: 'public_changelog',
+        blogTitle: '產品更新記錄',
+        blogDescription: '了解我們OOSA-APP的更新和改進',
         blogSidebarCount: 'ALL',
         blogSidebarTitle: '所有版本',
         routeBasePath: '/release-notes',
-        showReadingTime: false,
-        postsPerPage: 20,
         archiveBasePath: null,
         authorsMapPath: 'authors.json',
+        path: path.resolve(__dirname, './public_changelog'),
+        showReadingTime: false,
+        postsPerPage: 20,
         feedOptions: {
           type: 'all',
-          title: '产品发布说明',
-          description: '了解我们产品的最新更新和改进',
-          copyright: `Copyright © ${new Date().getFullYear()} 您的公司名称`,
-          language: 'zh-Hans',
+          title: '產品更新記錄',
+          description: '了解我們產品的公開版本更新和改進',
+          copyright: `Copyright © ${new Date().getFullYear()} Arwork`,
+          language: 'zh-Hant',
         },
         onInlineAuthors: 'warn',
       },
@@ -107,13 +137,18 @@ const config: Config = {
         },
         {to: '/blog', label: 'Blog', position: 'left'},
         {
-          href: 'https://github.com/AidChen0509/oosa_docs',
+          href: 'https://github.com/arwoosa',
           label: 'GitHub',
           position: 'right',
         },
         {
+          to: '/internal-release-notes',
+          label: '內部發布說明',
+          position: 'left'
+        },
+        {
           to: '/release-notes',
-          label: 'Release Notes',
+          label: '產品更新記錄',
           position: 'left'
         },
       ],
@@ -156,7 +191,7 @@ const config: Config = {
             },
             {
               label: 'GitHub',
-              href: 'https://github.com/facebook/docusaurus',
+              href: 'https://github.com/arwoosa',
             },
           ],
         },

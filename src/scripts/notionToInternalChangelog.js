@@ -58,10 +58,10 @@ async function fetchIssuesFromNotion() {
 
     // 轉換Notion頁面到Issue物件
     const issues = [];
-    
+
     for (const page of response.results) {
       const properties = page.properties;
-      
+
       const issue = {
         bugNumber: properties['Bug Number']?.unique_id?.number?.toString() || '',
         title: properties['問題描述與詳細說明']?.title?.[0]?.plain_text || '',
@@ -77,7 +77,7 @@ async function fetchIssuesFromNotion() {
         pageId: page.id, // 保存頁面ID，用於生成Notion URL
         url: `https://www.notion.so/${page.id.replace(/-/g, '')}`
       };
-      
+
       issues.push(issue);
     }
 
@@ -93,7 +93,7 @@ async function fetchIssuesFromNotion() {
  */
 function groupIssuesByVersion(issues) {
   const groupedIssues = {};
-  
+
   issues.forEach(issue => {
     const version = issue.version || '未指定版本';
     if (!groupedIssues[version]) {
@@ -101,7 +101,7 @@ function groupIssuesByVersion(issues) {
     }
     groupedIssues[version].push(issue);
   });
-  
+
   return groupedIssues;
 }
 
@@ -110,7 +110,7 @@ function groupIssuesByVersion(issues) {
  */
 function groupIssuesByFeatureAndCategory(issues) {
   const groupedByFeature = {};
-  
+
   // 先按功能名稱分組
   issues.forEach(issue => {
     const featureName = issue.featureName || '未分類功能';
@@ -119,13 +119,13 @@ function groupIssuesByFeatureAndCategory(issues) {
     }
     groupedByFeature[featureName].push(issue);
   });
-  
+
   // 再按問題類別進一步分組
   const groupedByFeatureAndCategory = {};
-  
+
   Object.entries(groupedByFeature).forEach(([featureName, featureIssues]) => {
     groupedByFeatureAndCategory[featureName] = {};
-    
+
     featureIssues.forEach(issue => {
       const category = issue.category || '其他';
       if (!groupedByFeatureAndCategory[featureName][category]) {
@@ -134,7 +134,7 @@ function groupIssuesByFeatureAndCategory(issues) {
       groupedByFeatureAndCategory[featureName][category].push(issue);
     });
   });
-  
+
   return groupedByFeatureAndCategory;
 }
 
@@ -143,16 +143,16 @@ function groupIssuesByFeatureAndCategory(issues) {
  */
 function getContributors(issues) {
   const contributorsMap = new Map();
-  
+
   issues.forEach(issue => {
     if (issue.assignee) {
       // 如果在已知貢獻者中存在，使用已知的GitHub用戶名
-      const github = knownContributors[issue.assignee] || 
-                     issue.assignee.toLowerCase().replace(/\s+/g, '');
+      const github = knownContributors[issue.assignee] ||
+        issue.assignee.toLowerCase().replace(/\s+/g, '');
       contributorsMap.set(issue.assignee, github);
     }
   });
-  
+
   // 轉換為數組並按名稱排序
   return Array.from(contributorsMap.entries())
     .map(([name, github]) => ({ name, github }))
@@ -178,7 +178,7 @@ function getVersionReleaseDate(issues) {
       latestDate = issue.lastEditedTime;
     }
   });
-  
+
   return formatDate(latestDate);
 }
 
@@ -195,23 +195,23 @@ function formatCategory(category) {
  */
 function convertToChangelogMarkdown(groupedIssues) {
   let markdown = '# Docusaurus Changelog\n\n';
-  
+
   // 按版本處理
   for (const [version, issues] of Object.entries(groupedIssues)) {
     const releaseDate = getVersionReleaseDate(issues);
     markdown += `## ${version} (${releaseDate})\n\n`;
-    
+
     // 先按功能名稱分組，再按問題類別分組
     const issuesByFeatureAndCategory = groupIssuesByFeatureAndCategory(issues);
-    
+
     // 按功能名稱遍歷
     for (const [featureName, categorizedIssues] of Object.entries(issuesByFeatureAndCategory)) {
       markdown += `#### ${featureName}\n\n`;
-      
+
       // 按問題類別遍歷
       for (const [category, categoryIssues] of Object.entries(categorizedIssues)) {
         markdown += `### ${formatCategory(category)}\n\n`;
-        
+
         // 收集所有影響到的UI
         const affectedUIs = new Set();
         categoryIssues.forEach(issue => {
@@ -221,63 +221,63 @@ function convertToChangelogMarkdown(groupedIssues) {
             }
           });
         });
-        
+
         // 如果有UI影響，添加影響的UI列表
         if (affectedUIs.size > 0) {
           markdown += `- \`${Array.from(affectedUIs).join('`, `')}\`\n`;
         }
-        
+
         // 添加每個問題
         categoryIssues.forEach(issue => {
           // 構建類似Docusaurus的PR描述
           let description = issue.title;
-          
-          const prefix = category === '功能新增' ? 'feat' : 
-                        category === '問題修復' ? 'fix' : 
-                        category === '文件更新' ? 'docs' : 'chore';
-                        
+
+          const prefix = category === '功能新增' ? 'feat' :
+            category === '問題修復' ? 'fix' :
+              category === '文件更新' ? 'docs' : 'chore';
+
           // 使用第一個UI作為scope，如果存在
           const scope = issue.ui.length > 0 ? issue.ui[0].toLowerCase() : '';
           const scopeText = scope ? `(${scope})` : '';
-          
+
           // 生成GitHub風格的PR連結和描述
           markdown += `  - [#${issue.bugNumber}] ${prefix}${scopeText}: ${description} [🔗](${issue.url})`;
-          
+
           // 添加作者
           if (issue.assignee) {
-            const githubUsername = knownContributors[issue.assignee] || 
-                                 issue.assignee.toLowerCase().replace(/\s+/g, '');
+            const githubUsername = knownContributors[issue.assignee] ||
+              issue.assignee.toLowerCase().replace(/\s+/g, '');
             markdown += ` ([@${githubUsername}](https://github.com/${githubUsername}))`;
           }
-          
+
           // 添加所有UI標籤（如果有多個）
           if (issue.ui.length > 1) {
             markdown += ` [UI: ${issue.ui.join(', ')}]`;
           }
-          
+
           // 添加所有優先級標籤
           if (issue.priority.length > 0) {
             markdown += ` [優先級: ${issue.priority.join(', ')}]`;
           }
-          
+
           markdown += '\n';
         });
-        
+
         markdown += '\n';
       }
     }
-    
+
     // 添加貢獻者信息（與Docusaurus的parseAuthors兼容）
     const contributors = getContributors(issues);
     if (contributors.length > 0) {
       markdown += `#### Committers: ${contributors.length}\n\n`;
-      contributors.forEach(({name, github}) => {
+      contributors.forEach(({ name, github }) => {
         markdown += `- ${name} ([@${github}](https://github.com/${github}))\n`;
       });
       markdown += '\n';
     }
   }
-  
+
   return markdown;
 }
 
@@ -290,19 +290,23 @@ async function generateChangelog() {
     console.log('從Notion獲取資料...');
     const issues = await fetchIssuesFromNotion();
     console.log(`成功獲取 ${issues.length} 條問題記錄`);
-    
+
     // 2. 按版本分組
     const groupedIssues = groupIssuesByVersion(issues);
-    
+
     // 3. 轉換為Markdown
     console.log('生成Changelog Markdown...');
     const markdown = convertToChangelogMarkdown(groupedIssues);
-    
+
     // 4. 保存Markdown檔案
-    const outputPath = path.resolve(process.cwd(), 'CHANGELOG.md');
+    const outputDir = path.resolve(process.cwd(), 'internal_changelog');
+    // 確保目錄存在
+    fs.ensureDirSync(outputDir);
+    // 設置輸出路徑
+    const outputPath = path.join(outputDir, 'CHANGELOG.md');
     await fs.writeFile(outputPath, markdown, 'utf8');
-    
-    console.log(`成功生成CHANGELOG.md檔案: ${outputPath}`);
+
+    console.log(`成功生成內部版本CHANGELOG.md檔案: ${outputPath}`);
   } catch (error) {
     console.error('生成Changelog失敗:', error);
     process.exit(1);

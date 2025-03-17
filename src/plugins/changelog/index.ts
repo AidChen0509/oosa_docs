@@ -137,15 +137,15 @@ async function createBlogFiles(
 
 const ChangelogPlugin: typeof pluginContentBlog =
   async function ChangelogPlugin(context, options) {
-    const generateDir = path.join(context.siteDir, 'changelog/source');
+    const pluginId = options.id;
+    const generateDir = path.join(context.siteDir, `${pluginId}/source`);
     const blogPlugin = await pluginContentBlog(context, {
       ...options,
       path: generateDir,
-      id: 'changelog',
       blogListComponent: '@theme/ChangelogList',
       blogPostComponent: '@theme/ChangelogPage',
     });
-    const changelogPath = path.join(process.cwd(), 'changelog', 'CHANGELOG.md');
+    const changelogPath = path.join(options.path, 'CHANGELOG.md');
     return {
       ...blogPlugin,
       name: 'changelog-plugin',
@@ -180,7 +180,7 @@ const ChangelogPlugin: typeof pluginContentBlog =
         const pluginDataDirRoot = path.join(
           context.generatedFilesDir,
           'changelog-plugin',
-          'default',
+          pluginId,
         );
         // Redirect the metadata path to our folder
         // @ts-expect-error: unsafe but works

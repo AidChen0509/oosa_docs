@@ -61,10 +61,10 @@ async function fetchIssuesFromNotion() {
 
     // 轉換Notion頁面到Issue物件
     const issues = [];
-    
+
     for (const page of response.results) {
       const properties = page.properties;
-      
+
       const issue = {
         title: properties['對外發布版本Title']?.rich_text?.[0]?.plain_text || '',
         status: properties['Status']?.status?.name || '',
@@ -78,7 +78,7 @@ async function fetchIssuesFromNotion() {
         pageId: page.id,
         url: `https://www.notion.so/${page.id.replace(/-/g, '')}`
       };
-      
+
       issues.push(issue);
     }
 
@@ -94,7 +94,7 @@ async function fetchIssuesFromNotion() {
  */
 function groupIssuesByVersion(issues) {
   const groupedIssues = {};
-  
+
   issues.forEach(issue => {
     const version = issue.version || '未指定版本';
     if (!groupedIssues[version]) {
@@ -102,7 +102,7 @@ function groupIssuesByVersion(issues) {
     }
     groupedIssues[version].push(issue);
   });
-  
+
   return groupedIssues;
 }
 
@@ -111,7 +111,7 @@ function groupIssuesByVersion(issues) {
  */
 function groupIssuesByFeatureAndCategory(issues) {
   const groupedByFeature = {};
-  
+
   // 先按功能名稱分組
   issues.forEach(issue => {
     const featureName = issue.featureName || '未分類功能';
@@ -120,13 +120,13 @@ function groupIssuesByFeatureAndCategory(issues) {
     }
     groupedByFeature[featureName].push(issue);
   });
-  
+
   // 再按問題類別進一步分組
   const groupedByFeatureAndCategory = {};
-  
+
   Object.entries(groupedByFeature).forEach(([featureName, featureIssues]) => {
     groupedByFeatureAndCategory[featureName] = {};
-    
+
     featureIssues.forEach(issue => {
       const category = issue.category || '其他';
       if (!groupedByFeatureAndCategory[featureName][category]) {
@@ -135,7 +135,7 @@ function groupIssuesByFeatureAndCategory(issues) {
       groupedByFeatureAndCategory[featureName][category].push(issue);
     });
   });
-  
+
   return groupedByFeatureAndCategory;
 }
 
@@ -165,7 +165,7 @@ function getVersionReleaseDate(issues) {
       latestDate = issue.lastEditedTime;
     }
   });
-  
+
   return formatDate(latestDate);
 }
 
@@ -182,23 +182,23 @@ function formatCategory(category) {
  */
 function convertToPublicChangelogMarkdown(groupedIssues) {
   let markdown = '# 產品更新記錄\n\n';
-  
+
   // 按版本處理
   for (const [version, issues] of Object.entries(groupedIssues)) {
     const releaseDate = getVersionReleaseDate(issues);
     markdown += `## ${version} (${releaseDate})\n\n`;
-    
+
     // 先按功能名稱分組，再按問題類別分組
     const issuesByFeatureAndCategory = groupIssuesByFeatureAndCategory(issues);
-    
+
     // 按功能名稱遍歷
     for (const [featureName, categorizedIssues] of Object.entries(issuesByFeatureAndCategory)) {
-      markdown += `### ${featureName}\n\n`;
-      
+      markdown += `#### ${featureName}\n\n`;
+
       // 按問題類別遍歷
       for (const [category, categoryIssues] of Object.entries(categorizedIssues)) {
-        markdown += `#### ${formatCategory(category)}\n\n`;
-        
+        markdown += `### ${formatCategory(category)}\n\n`;
+
         // 收集所有影響到的UI
         const affectedUIs = new Set();
         categoryIssues.forEach(issue => {
@@ -208,36 +208,36 @@ function convertToPublicChangelogMarkdown(groupedIssues) {
             }
           });
         });
-        
+
         // 添加每個問題
         categoryIssues.forEach(issue => {
           // 構建簡潔的描述
           let description = issue.title;
-          
-          const prefix = category === '功能新增' ? 'feat' : 
-                        category === '問題修復' ? 'fix' : 
-                        category === '文件更新' ? 'docs' : 'chore';
-                        
+
+          const prefix = category === '功能新增' ? 'feat' :
+            category === '問題修復' ? 'fix' :
+              category === '文件更新' ? 'docs' : 'chore';
+
           // 使用第一個UI作為scope，如果存在
           const scope = issue.ui.length > 0 ? issue.ui[0].toLowerCase() : '';
           const scopeText = scope ? `(${scope})` : '';
-          
+
           // 生成乾淨的描述，不含Bug編號和優先級，也不包含Notion連結
           markdown += `  - ${prefix}${scopeText}: ${description}`;
-          
+
           // 添加所有UI標籤（如果有多個）
           if (issue.ui.length > 1) {
             markdown += ` [UI: ${issue.ui.join(', ')}]`;
           }
-          
+
           markdown += '\n';
         });
-        
+
         markdown += '\n';
       }
     }
   }
-  
+
   return markdown;
 }
 
@@ -250,19 +250,23 @@ async function generatePublicChangelog() {
     console.log('從Notion獲取資料...');
     const issues = await fetchIssuesFromNotion();
     console.log(`成功獲取 ${issues.length} 條含對外發布標題的記錄`);
-    
+
     // 2. 按版本分組
     const groupedIssues = groupIssuesByVersion(issues);
-    
+
     // 3. 轉換為Markdown
     console.log('生成對外版本Changelog Markdown...');
     const markdown = convertToPublicChangelogMarkdown(groupedIssues);
-    
+
     // 4. 保存Markdown檔案
-    const outputPath = path.resolve(process.cwd(), 'PUBLIC_CHANGELOG.md');
+    const outputDir = path.resolve(process.cwd(), 'public_changelog');
+    // 確保目錄存在
+    fs.ensureDirSync(outputDir);
+    // 設置輸出路徑
+    const outputPath = path.join(outputDir, 'CHANGELOG.md');
     await fs.writeFile(outputPath, markdown, 'utf8');
-    
-    console.log(`成功生成PUBLIC_CHANGELOG.md檔案: ${outputPath}`);
+
+    console.log(`成功生成對外版本CHANGELOG.md檔案: ${outputPath}`);
   } catch (error) {
     console.error('生成對外版本Changelog失敗:', error);
     process.exit(1);
