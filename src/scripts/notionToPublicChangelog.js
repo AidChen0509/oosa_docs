@@ -25,7 +25,7 @@ const notion = new Client({
 });
 
 // 獲取資料庫ID
-const databaseId = process.env.NOTION_DATABASE_ID || '1b23114ed64380078306e9c3714d00c0';
+const databaseId = process.env.NOTION_DATABASE_ID;
 
 /**
  * 從Notion資料庫獲取已完成測試且有對外發布標題的問題
