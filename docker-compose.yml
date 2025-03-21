@@ -1,0 +1,23 @@
+services:
+  oosa-docs:
+    build: .
+    container_name: oosa-docs
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      - "3100:3100"
+    environment:
+      - NODE_ENV=production
+      - NOTION_API_KEY=${NOTION_API_KEY}
+      - NOTION_DATABASE_ID=${NOTION_DATABASE_ID}
+      - API_PORT=3100
+      - API_SECRET_KEY=${API_SECRET_KEY:-changelog}
+    volumes:
+      - ./internal_changelog:/app/internal_changelog
+      - ./public_changelog:/app/public_changelog
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3100/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

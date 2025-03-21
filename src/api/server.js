@@ -1,159 +1,232 @@
-const express = require('express');
+// src/api/server.js
+const Fastify = require('fastify');
 const { exec } = require('child_process');
 const path = require('path');
 const dotenv = require('dotenv');
-const bodyParser = require('body-parser');
+const util = require('util');
+
+// 將 exec 轉換為 Promise 風格
+const execPromise = util.promisify(exec);
 
 // 載入.env檔案中的環境變數
 dotenv.config();
 
-const app = express();
 const PORT = process.env.API_PORT || 3100;
 const API_SECRET_KEY = process.env.API_SECRET_KEY;
 
-// Middleware
-app.use(bodyParser.json());
+// 創建 Fastify 實例
+const fastify = Fastify({
+  logger: true,
+  // 啟用請求 ID 生成
+  requestIdHeader: 'x-request-id',
+  // 配置格式化器以進行日誌美化
+  requestIdLogLabel: 'requestId'
+});
 
-// 驗證請求的中間件
-const verifyRequest = (req, res, next) => {
-  const authToken = req.headers['x-api-key'];
+// 註冊 CORS 插件
+fastify.register(import('@fastify/cors'));
+
+// 驗證請求的鉤子函數
+fastify.addHook('onRequest', async (request, reply) => {
+  const authToken = request.headers['x-api-key'];
   
-  if (!authToken || authToken !== API_SECRET_KEY) {
-    return res.status(401).json({ error: '未授權的請求' });
+  // 健康檢查端點不需要驗證
+  if (request.routeOptions.url === '/api/health') {
+    return;
   }
   
-  next();
-};
+  // Notion webhook 端點不需要驗證
+  if (request.routeOptions.url === '/api/webhook/notion') {
+    return;
+  }
+  
+  if (!authToken || authToken !== API_SECRET_KEY) {
+    throw new Error('未授權的請求');
+  }
+});
+
+// 錯誤處理
+fastify.setErrorHandler(async (error, request, reply) => {
+  fastify.log.error(error);
+  
+  // 處理特定錯誤
+  if (error.message === '未授權的請求') {
+    return reply.code(401).send({ error: error.message });
+  }
+  
+  // 默認錯誤處理
+  return reply.code(500).send({ 
+    error: '內部服務器錯誤',
+    message: error.message
+  });
+});
 
 // 健康檢查端點
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+fastify.route({
+  method: 'GET',
+  url: '/api/health',
+  handler: async () => {
+    return { status: 'ok' };
+  }
 });
 
 // 生成公開版changelog的端點
-app.post('/api/generate-changelog/public', verifyRequest, (req, res) => {
-  const rootDir = path.resolve(__dirname, '../../');
-  const command = 'npm run generate-changelog:public';
-  
-  exec(command, { cwd: rootDir }, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`執行錯誤: ${error.message}`);
-      return res.status(500).json({ 
+fastify.route({
+  method: 'POST',
+  url: '/api/generate-changelog/public',
+  handler: async () => {
+    const rootDir = path.resolve(__dirname, '../../');
+    const command = 'npm run generate-changelog:public';
+    
+    try {
+      const { stdout, stderr } = await execPromise(command, { cwd: rootDir });
+      
+      if (stderr) {
+        fastify.log.warn(`警告: ${stderr}`);
+      }
+      
+      fastify.log.info(`輸出: ${stdout}`);
+      return { 
+        success: true, 
+        message: '公開版changelog生成成功',
+        output: stdout 
+      };
+    } catch (error) {
+      fastify.log.error(`執行錯誤: ${error.message}`);
+      return { 
         success: false, 
         error: error.message, 
-        details: stderr 
-      });
+        details: error.stderr 
+      };
     }
-    
-    if (stderr) {
-      console.warn(`警告: ${stderr}`);
-    }
-    
-    console.log(`輸出: ${stdout}`);
-    res.status(200).json({ 
-      success: true, 
-      message: '公開版changelog生成成功',
-      output: stdout 
-    });
-  });
+  }
 });
 
 // 生成內部版changelog的端點
-app.post('/api/generate-changelog/internal', verifyRequest, (req, res) => {
-  const rootDir = path.resolve(__dirname, '../../');
-  const command = 'npm run generate-changelog:internal';
-  
-  exec(command, { cwd: rootDir }, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`執行錯誤: ${error.message}`);
-      return res.status(500).json({ 
+fastify.route({
+  method: 'POST',
+  url: '/api/generate-changelog/internal',
+  handler: async () => {
+    const rootDir = path.resolve(__dirname, '../../');
+    const command = 'npm run generate-changelog:internal';
+    
+    try {
+      const { stdout, stderr } = await execPromise(command, { cwd: rootDir });
+      
+      if (stderr) {
+        fastify.log.warn(`警告: ${stderr}`);
+      }
+      
+      fastify.log.info(`輸出: ${stdout}`);
+      return { 
+        success: true, 
+        message: '內部版changelog生成成功',
+        output: stdout 
+      };
+    } catch (error) {
+      fastify.log.error(`執行錯誤: ${error.message}`);
+      return { 
         success: false, 
         error: error.message, 
-        details: stderr 
-      });
+        details: error.stderr 
+      };
     }
-    
-    if (stderr) {
-      console.warn(`警告: ${stderr}`);
-    }
-    
-    console.log(`輸出: ${stdout}`);
-    res.status(200).json({ 
-      success: true, 
-      message: '內部版changelog生成成功',
-      output: stdout 
-    });
-  });
+  }
 });
 
 // 同時生成兩種changelog的端點
-app.post('/api/generate-changelog/all', verifyRequest, (req, res) => {
-  const rootDir = path.resolve(__dirname, '../../');
-  
-  // 先執行內部版本生成
-  exec('npm run generate-changelog:internal', { cwd: rootDir }, (internalError, internalStdout, internalStderr) => {
-    if (internalError) {
-      console.error(`內部版生成錯誤: ${internalError.message}`);
-      return res.status(500).json({ 
-        success: false, 
-        error: internalError.message, 
-        details: internalStderr,
-        step: 'internal' 
-      });
-    }
+fastify.route({
+  method: 'POST',
+  url: '/api/generate-changelog/all',
+  handler: async () => {
+    const rootDir = path.resolve(__dirname, '../../');
     
-    // 再執行公開版本生成
-    exec('npm run generate-changelog:public', { cwd: rootDir }, (publicError, publicStdout, publicStderr) => {
-      if (publicError) {
-        console.error(`公開版生成錯誤: ${publicError.message}`);
-        return res.status(500).json({ 
-          success: false, 
-          error: publicError.message, 
-          details: publicStderr,
-          step: 'public',
-          internalOutput: internalStdout
-        });
+    try {
+      // 執行內部版本生成
+      const { stdout: internalStdout, stderr: internalStderr } = 
+        await execPromise('npm run generate-changelog:internal', { cwd: rootDir });
+      
+      if (internalStderr) {
+        fastify.log.warn(`內部版警告: ${internalStderr}`);
       }
       
-      console.log(`內部版輸出: ${internalStdout}`);
-      console.log(`公開版輸出: ${publicStdout}`);
+      // 執行公開版本生成
+      const { stdout: publicStdout, stderr: publicStderr } = 
+        await execPromise('npm run generate-changelog:public', { cwd: rootDir });
       
-      res.status(200).json({ 
+      if (publicStderr) {
+        fastify.log.warn(`公開版警告: ${publicStderr}`);
+      }
+      
+      fastify.log.info(`內部版輸出: ${internalStdout}`);
+      fastify.log.info(`公開版輸出: ${publicStdout}`);
+      
+      return { 
         success: true, 
         message: '所有changelog生成成功',
         internalOutput: internalStdout,
         publicOutput: publicStdout
-      });
-    });
-  });
+      };
+    } catch (error) {
+      // 區分內部和公開版錯誤
+      if (error.stdout && error.stdout.includes('generate-changelog:internal')) {
+        fastify.log.error(`內部版生成錯誤: ${error.message}`);
+        return { 
+          success: false, 
+          error: error.message, 
+          details: error.stderr,
+          step: 'internal' 
+        };
+      } else {
+        fastify.log.error(`公開版生成錯誤: ${error.message}`);
+        return { 
+          success: false, 
+          error: error.message, 
+          details: error.stderr,
+          step: 'public'
+        };
+      }
+    }
+  }
 });
 
 // Notion webhook端點 (可由Notion自動觸發)
-app.post('/api/webhook/notion', (req, res) => {
-  // 這裡可以添加從Notion接收webhook的邏輯
-  // 例如驗證webhook簽名等
-  
-  const payload = req.body;
-  console.log('收到Notion webhook:', JSON.stringify(payload));
-  
-  // 可以基於webhook內容決定是否要生成changelog
-  const rootDir = path.resolve(__dirname, '../../');
-  
-  exec('npm run generate-changelog:all', { cwd: rootDir }, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`執行錯誤: ${error.message}`);
-      // 不要返回錯誤給Notion，以避免webhook重試
-      return res.status(200).json({ received: true });
-    }
+fastify.route({
+  method: 'POST',
+  url: '/api/webhook/notion',
+  handler: async (request) => {
+    const payload = request.body;
+    fastify.log.info('收到Notion webhook:', payload);
     
-    console.log(`輸出: ${stdout}`);
-    res.status(200).json({ received: true });
-  });
+    // 可以基於webhook內容決定是否要生成changelog
+    const rootDir = path.resolve(__dirname, '../../');
+    
+    try {
+      await execPromise('npm run generate-changelog:all', { cwd: rootDir });
+      return { received: true, processed: true };
+    } catch (error) {
+      fastify.log.error(`執行錯誤: ${error.message}`);
+      // 不要返回錯誤給Notion，以避免webhook重試
+      return { received: true, processed: false };
+    }
+  }
 });
 
-// 啟動服務器
-app.listen(PORT, () => {
-  console.log(`Changelog API服務器已啟動，監聽端口 ${PORT}`);
-});
+// 啟動服務器的函數
+const start = async () => {
+  try {
+    await fastify.listen({ port: PORT, host: '0.0.0.0' });
+    // Fastify 5.x 自動處理 SIGINT 和 SIGTERM 信號
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
 
-module.exports = app; // 用於測試等目的
+// 只有在直接運行此文件時才啟動服務器
+if (require.main === module) {
+  start();
+}
+
+// 導出 Fastify 實例供測試使用
+module.exports = fastify;
