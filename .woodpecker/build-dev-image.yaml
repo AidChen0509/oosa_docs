@@ -6,6 +6,11 @@ steps:
   build-and-push:
     image: woodpeckerci/plugin-docker-buildx
     settings:
+      environment:
+        NOTION_API_KEY:
+          from_secret: NOTION_API_KEY
+        NOTION_DATABASE_ID:
+          from_secret: NOTION_DATABASE_ID
       repo: sjc.vultrcr.com/oosa/release-docbot
       dockerfile: Dockerfile
       platforms: linux/amd64,linux/arm64
