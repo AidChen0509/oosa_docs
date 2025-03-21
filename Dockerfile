@@ -18,10 +18,8 @@ RUN mkdir -p internal_changelog public_changelog
 
 # 設置環境變數
 ENV NODE_ENV=production
-ENV NOTION_API_KEY=
-ENV NOTION_DATABASE_ID=
 ENV API_PORT=3100
-ENV API_SECRET_KEY=changelog
+
 
 # 構建 Docusaurus 靜態網站
 RUN npm run build
