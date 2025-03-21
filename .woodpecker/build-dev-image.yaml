@@ -1,0 +1,20 @@
+when:
+  - event: push
+    branch: ci
+
+steps:
+  build-and-push:
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      repo: sjc.vultrcr.com/oosa/release-docbot
+      dockerfile: .docker/Dockerfile.product
+      platforms: linux/amd64,linux/arm64
+      registry: https://sjc.vultrcr.com/oosa
+      tag: dev
+      username:
+        from_secret: REGISTRY_USER
+      password:
+        from_secret: REGISTRY_TOKEN
+    when:
+      branch: ci
+      event: push
