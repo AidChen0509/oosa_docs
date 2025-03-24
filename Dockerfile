@@ -17,7 +17,6 @@ COPY . .
 RUN mkdir -p internal_changelog public_changelog
 
 # 設置環境變數
-ENV NODE_ENV=production
 ENV API_PORT=3100
 
 
@@ -29,4 +28,4 @@ EXPOSE 3000
 EXPOSE 3100
 
 # 啟動命令
-CMD ["sh", "-c", "npm run api:start & npm run serve -- --port 3000 --host 0.0.0.0"]
+CMD ["sh", "-c", "npm run generate-changelog:all && npm run api:start & npm run start -- --port 3000 --host 0.0.0.0"]
