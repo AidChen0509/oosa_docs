@@ -7,6 +7,8 @@
 # Generated files
 .docusaurus
 .cache-loader
+/internal_changelog
+/public_changelog
 
 # Misc
 .DS_Store
