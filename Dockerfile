@@ -16,8 +16,13 @@ COPY . .
 # 建立目錄以確保 changelog 生成時不會出錯
 RUN mkdir -p internal_changelog public_changelog
 
+ARG api_key
+ARG db_id
+
 # 設置環境變數
 ENV API_PORT=3100
+ENV NOTION_API_KEY=$api_key
+ENV NOTION_DATABASE_ID=$db_id
 
 # 先執行抓取 changelog，確保成功後再執行 Docusaurus 靜態網站構建
 RUN npm run generate-changelog:all && npm run build
