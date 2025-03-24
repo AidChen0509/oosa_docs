@@ -21,7 +21,7 @@ const categoryEmojis = {
 
 // 定義已知的貢獻者GitHub連結
 const knownContributors = {
-  'Tommy Chang': 'AidChen0509',
+  'Chen Aiden': 'AidChen0509',
   'Peter Chen': '94Peter',
   // 可以根據需要添加更多貢獻者
 };
